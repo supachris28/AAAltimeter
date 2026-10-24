@@ -108,13 +108,10 @@ class AltimeterScreen(carContext: CarContext) : Screen(carContext) {
             )
         }
 
-        // Tapping the range button steps through 30/15/5 min, then 30/15/5/1 mi.
+        // Shows the current range; tapping it opens the list of ranges to pick from.
         val rangeButton = Action.Builder()
             .setTitle(range.label(carContext))
-            .setOnClickListener {
-                ChartRangeSetting.cycle(carContext)
-                invalidate()
-            }
+            .setOnClickListener { screenManager.push(RangePickerScreen(carContext)) }
             .build()
 
         return PaneTemplate.Builder(pane.build())

@@ -2,15 +2,23 @@ package com.supachris28.aaaltimeter
 
 import android.Manifest
 import android.app.Activity
+import android.content.res.Configuration
+import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
 import com.supachris28.aaaltimeter.chart.ChartRangeSetting
 import com.supachris28.aaaltimeter.chart.ElevationChartRenderer
-import com.supachris28.aaaltimeter.chart.label
+import com.supachris28.aaaltimeter.chart.longLabel
+import com.supachris28.aaaltimeter.elevation.ChartRange
 import com.supachris28.aaaltimeter.elevation.ElevationRepository
 import com.supachris28.aaaltimeter.recording.ElevationRecordingService
 import kotlin.math.roundToInt
@@ -23,7 +31,7 @@ class MainActivity : Activity() {
 
     private lateinit var status: TextView
     private lateinit var chart: ImageView
-    private lateinit var rangeButton: Button
+    private lateinit var rangePicker: Spinner
     private lateinit var renderer: ElevationChartRenderer
     private var chartScale = 1f
     private val onElevationChanged: () -> Unit = { updateStatus() }
@@ -32,7 +40,10 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         val padding = (24 * resources.displayMetrics.density).toInt()
         status = TextView(this).apply { textSize = 18f }
-        renderer = ElevationChartRenderer(this, dark = false)
+        // Light or dark follows the phone's system setting (the theme does the same).
+        val dark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+            Configuration.UI_MODE_NIGHT_YES
+        renderer = ElevationChartRenderer(this, dark)
         // Draw at the size the image will actually occupy so it isn't upscaled and blurry: the
         // full width in portrait, but no more than half the screen height in landscape.
         val metrics = resources.displayMetrics
@@ -45,35 +56,65 @@ class MainActivity : Activity() {
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(0, padding / 2, 0, padding / 2)
         }
-        // Steps through 30/15/5 min, then 30/15/5/1 mi. Shared with the car screen.
-        rangeButton = Button(this).apply {
-            setOnClickListener {
-                ChartRangeSetting.cycle(this@MainActivity)
-                updateStatus()
+        // Dropdown of chart ranges. The choice is shared with the car screen.
+        val ranges = ChartRange.entries
+        rangePicker = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_item,
+                ranges.map { it.longLabel(this@MainActivity) },
+            ).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+            setSelection(ranges.indexOf(ChartRangeSetting.get(this@MainActivity)))
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    ChartRangeSetting.set(this@MainActivity, ranges[position])
+                    updateStatus()
+                }
+
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
             }
         }
-        setContentView(
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(padding, padding, padding, padding)
-                addView(TextView(this@MainActivity).apply {
-                    setText(R.string.phone_message)
-                    textSize = 18f
-                })
-                addView(status)
-                addView(chart)
-                addView(rangeButton)
-                addView(Button(this@MainActivity).apply {
-                    setText(R.string.start_recording)
-                    setOnClickListener { startRecording() }
-                })
-                addView(Button(this@MainActivity).apply {
-                    setText(R.string.stop_recording)
-                    setOnClickListener { ElevationRecordingService.stop(this@MainActivity) }
-                })
-                addView(TextView(this@MainActivity).apply { text = versionLabel() })
-            }
-        )
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(padding, padding, padding, padding)
+            addView(TextView(this@MainActivity).apply {
+                setText(R.string.app_name)
+                textSize = 28f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setPadding(0, 0, 0, padding / 2)
+            })
+            addView(TextView(this@MainActivity).apply {
+                setText(R.string.phone_message)
+                textSize = 16f
+                setTextColor(getColor(R.color.text_secondary))
+                setPadding(0, 0, 0, padding / 2)
+            })
+            addView(status)
+            addView(chart)
+            addView(TextView(this@MainActivity).apply { setText(R.string.chart_range) })
+            addView(rangePicker)
+            addView(Button(this@MainActivity).apply {
+                setText(R.string.start_recording)
+                setOnClickListener { startRecording() }
+            })
+            addView(Button(this@MainActivity).apply {
+                setText(R.string.stop_recording)
+                setOnClickListener { ElevationRecordingService.stop(this@MainActivity) }
+            })
+            addView(TextView(this@MainActivity).apply { text = versionLabel() })
+        }
+        // The app draws edge to edge (enforced from Android 15), so keep content clear of the
+        // status and navigation bars.
+        content.setOnApplyWindowInsetsListener { view, insets ->
+            view.setPadding(
+                padding + insets.systemWindowInsetLeft,
+                padding + insets.systemWindowInsetTop,
+                padding + insets.systemWindowInsetRight,
+                padding + insets.systemWindowInsetBottom,
+            )
+            insets
+        }
+        setContentView(ScrollView(this).apply { addView(content) })
     }
 
     override fun onStart() {
@@ -129,7 +170,8 @@ class MainActivity : Activity() {
     private fun updateStatus() {
         val snapshot = ElevationRepository.snapshot
         val range = ChartRangeSetting.get(this)
-        rangeButton.text = getString(R.string.range_button, range.label(this))
+        // Pick up a change made in the car while this screen was open.
+        if (rangePicker.selectedItemPosition != range.ordinal) rangePicker.setSelection(range.ordinal)
         chart.setImageBitmap(renderer.render(snapshot, range, chartScale))
         val current = snapshot.current
         status.text = when {

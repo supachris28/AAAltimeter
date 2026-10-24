@@ -110,10 +110,7 @@ class ChartScaleTest {
     }
 
     @Test
-    fun rangeCyclesAndRoundTripsByName() {
-        assertEquals(ChartRange.MINUTES_15, ChartRange.MINUTES_30.next())
-        assertEquals(ChartRange.MILES_30, ChartRange.MINUTES_5.next())
-        assertEquals(ChartRange.MINUTES_30, ChartRange.MILES_1.next())
+    fun rangeRoundTripsByName() {
         ChartRange.entries.forEach { assertEquals(it, ChartRange.fromName(it.name)) }
         assertEquals(ChartRange.DEFAULT, ChartRange.fromName(null))
         assertEquals(ChartRange.DEFAULT, ChartRange.fromName("NOT_A_RANGE"))
