@@ -16,6 +16,7 @@ import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.supachris28.aaaltimeter.R
+import com.supachris28.aaaltimeter.chart.ElevationChartRenderer
 import com.supachris28.aaaltimeter.elevation.ElevationRepository
 import com.supachris28.aaaltimeter.elevation.Trend
 import com.supachris28.aaaltimeter.recording.ElevationRecordingService

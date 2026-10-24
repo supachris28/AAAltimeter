@@ -5,25 +5,43 @@ import android.app.Activity
 import android.os.Build
 import android.os.Bundle
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.supachris28.aaaltimeter.chart.ElevationChartRenderer
 import com.supachris28.aaaltimeter.elevation.ElevationRepository
 import com.supachris28.aaaltimeter.recording.ElevationRecordingService
 import kotlin.math.roundToInt
 
 /**
- * Minimal phone-side screen. The real UI lives on the car screen; this is for granting
- * permissions and checking recording works without a car.
+ * Phone-side screen. The main UI lives on the car screen; this is for granting permissions,
+ * starting recording without a car, and seeing the same chart the car shows.
  */
 class MainActivity : Activity() {
 
     private lateinit var status: TextView
+    private lateinit var chart: ImageView
+    private lateinit var renderer: ElevationChartRenderer
+    private var chartScale = 1f
     private val onElevationChanged: () -> Unit = { updateStatus() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val padding = (24 * resources.displayMetrics.density).toInt()
         status = TextView(this).apply { textSize = 18f }
+        renderer = ElevationChartRenderer(this, dark = false)
+        // Draw at the size the image will actually occupy so it isn't upscaled and blurry: the
+        // full width in portrait, but no more than half the screen height in landscape.
+        val metrics = resources.displayMetrics
+        chartScale = minOf(
+            (metrics.widthPixels - 2 * padding).toFloat() / ElevationChartRenderer.WIDTH,
+            metrics.heightPixels / 2f / ElevationChartRenderer.HEIGHT,
+        )
+        chart = ImageView(this).apply {
+            adjustViewBounds = true
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(0, padding / 2, 0, padding / 2)
+        }
         setContentView(
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -33,6 +51,7 @@ class MainActivity : Activity() {
                     textSize = 18f
                 })
                 addView(status)
+                addView(chart)
                 addView(Button(this@MainActivity).apply {
                     setText(R.string.start_recording)
                     setOnClickListener { startRecording() }
@@ -85,6 +104,7 @@ class MainActivity : Activity() {
 
     private fun updateStatus() {
         val snapshot = ElevationRepository.snapshot
+        chart.setImageBitmap(renderer.render(snapshot, chartScale))
         val current = snapshot.current
         status.text = when {
             !ElevationRepository.isRecording -> getString(R.string.not_recording)
