@@ -18,7 +18,7 @@ app/src/main/
     car/AltimeterCarAppService.kt   Entry point Android Auto binds to
     car/AltimeterSession.kt    One session per car connection
     car/AltimeterScreen.kt     The screen shown on the car display
-    car/ElevationChartRenderer.kt   Draws the chart and indicator as a bitmap
+    chart/ElevationChartRenderer.kt   Draws the chart and indicator as a bitmap (car and phone)
     recording/ElevationRecordingService.kt   Foreground service that listens to GPS
     elevation/                 Smoothing, trend detection and history (plain Kotlin, unit tested)
 app/src/test/                  JVM unit tests (./gradlew testDebugUnitTest)
@@ -132,6 +132,9 @@ Below that is the smoothed altitude over the last 30 minutes (or the whole recor
 20 m, so GPS wobble on flat ground doesn't look like hills. Gaps of over a minute in GPS show as
 breaks in the line. The screen refreshes at most every 2 seconds, and follows the car's day/night
 mode. Cars with Car API level below 4 (rare) can't show pane images and get the text rows only.
+
+The phone app shows the same chart, drawn at the phone's screen resolution, under the status
+line. It updates with every GPS fix while the app is open.
 
 ## Why the POI category
 

@@ -1,4 +1,4 @@
-package com.supachris28.aaaltimeter.car
+package com.supachris28.aaaltimeter.chart
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -17,15 +17,16 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Draws the elevation chart as a bitmap for the car screen.
+ * Draws the elevation chart as a bitmap, for the car screen and the phone app.
  *
  * POI apps can't draw on the car display directly, so the chart goes into the template as an
- * image. The top strip carries the big readouts: current elevation on the left, and the
- * climbing / descending / level indicator on the right (an arrow plus words, so it never
- * relies on colour alone). Below it is the last [ChartScale.of] window of smoothed altitude.
+ * image. The phone app shows the same image, drawn at its screen resolution. The top strip
+ * carries the big readouts: current elevation on the left, and the climbing / descending /
+ * level indicator on the right (an arrow plus words, so it never relies on colour alone). Below it is the last [ChartScale.of] window of smoothed altitude.
  *
- * The bitmap is opaque RGB_565 to halve its size: it is sent to the car host over IPC on every
- * refresh, and very large images can be rejected.
+ * Layout is in a fixed 640×400 coordinate space. The bitmap is opaque RGB_565 to halve its
+ * size: it is sent to the car host over IPC on every refresh, and very large images can be
+ * rejected.
  */
 class ElevationChartRenderer(private val context: Context, private val dark: Boolean) {
 
@@ -45,9 +46,17 @@ class ElevationChartRenderer(private val context: Context, private val dark: Boo
     }
     private val text = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    fun render(snapshot: ElevationSnapshot, width: Int = WIDTH, height: Int = HEIGHT): Bitmap {
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+    /** Returns a [WIDTH]×[HEIGHT] bitmap, or that size times [pixelScale]. */
+    fun render(snapshot: ElevationSnapshot, pixelScale: Float = 1f): Bitmap {
+        val width = WIDTH
+        val height = HEIGHT
+        val bitmap = Bitmap.createBitmap(
+            (width * pixelScale).roundToInt(),
+            (height * pixelScale).roundToInt(),
+            Bitmap.Config.RGB_565,
+        )
         val canvas = Canvas(bitmap)
+        canvas.scale(pixelScale, pixelScale)
         canvas.drawColor(surface)
         drawHeader(canvas, snapshot, width.toFloat())
         val plot = RectF(0f, HEADER_HEIGHT + 24f, width - PADDING, height - 40f)
