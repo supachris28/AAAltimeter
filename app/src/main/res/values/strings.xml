@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AAAltimeter</string>
+    <string name="elevation">Elevation</string>
+    <string name="trend">Trend</string>
+    <string name="no_data">Waiting for GPS…</string>
+    <string name="phone_message">AAAltimeter runs on your car screen. Connect to Android Auto (or the Desktop Head Unit) to use it.</string>
+</resources>
