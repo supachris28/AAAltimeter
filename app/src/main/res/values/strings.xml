@@ -18,7 +18,10 @@
     <string name="descending">Descending</string>
     <string name="rate_up">+%1$d m/min</string>
     <string name="rate_down">−%1$d m/min</string>
-    <string name="minutes_ago">−%1$d min</string>
+    <string name="range_ago">−%1$s</string>
+    <string name="range_minutes">%1$d min</string>
+    <string name="range_miles">%1$d mi</string>
+    <string name="range_button">Chart range: %1$s</string>
     <string name="now">now</string>
 
     <string name="permission_needed">Location permission needed</string>

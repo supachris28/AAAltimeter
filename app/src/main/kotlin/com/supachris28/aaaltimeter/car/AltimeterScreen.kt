@@ -6,6 +6,7 @@ import android.os.SystemClock
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
+import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.CarIcon
 import androidx.car.app.model.Pane
 import androidx.car.app.model.PaneTemplate
@@ -16,7 +17,9 @@ import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.supachris28.aaaltimeter.R
+import com.supachris28.aaaltimeter.chart.ChartRangeSetting
 import com.supachris28.aaaltimeter.chart.ElevationChartRenderer
+import com.supachris28.aaaltimeter.chart.label
 import com.supachris28.aaaltimeter.elevation.ElevationRepository
 import com.supachris28.aaaltimeter.elevation.Trend
 import com.supachris28.aaaltimeter.recording.ElevationRecordingService
@@ -55,6 +58,7 @@ class AltimeterScreen(carContext: CarContext) : Screen(carContext) {
         val current = snapshot.current
         val hasPermission = ElevationRecordingService.hasLocationPermission(carContext)
         val recording = ElevationRepository.isRecording
+        val range = ChartRangeSetting.get(carContext)
 
         val elevationText = when {
             !hasPermission -> carContext.getString(R.string.permission_needed)
@@ -83,7 +87,7 @@ class AltimeterScreen(carContext: CarContext) : Screen(carContext) {
                     .build()
             )
         if (hasPermission && current != null && carContext.carAppApiLevel >= CarAppApiLevels.LEVEL_4) {
-            val chart = ElevationChartRenderer(carContext, carContext.isDarkMode).render(snapshot)
+            val chart = ElevationChartRenderer(carContext, carContext.isDarkMode).render(snapshot, range)
             pane.setImage(CarIcon.Builder(IconCompat.createWithBitmap(chart)).build())
         }
         when {
@@ -104,9 +108,19 @@ class AltimeterScreen(carContext: CarContext) : Screen(carContext) {
             )
         }
 
+        // Tapping the range button steps through 30/15/5 min, then 30/15/5/1 mi.
+        val rangeButton = Action.Builder()
+            .setTitle(range.label(carContext))
+            .setOnClickListener {
+                ChartRangeSetting.cycle(carContext)
+                invalidate()
+            }
+            .build()
+
         return PaneTemplate.Builder(pane.build())
             .setTitle(carContext.getString(R.string.app_name))
             .setHeaderAction(Action.APP_ICON)
+            .setActionStrip(ActionStrip.Builder().addAction(rangeButton).build())
             .build()
     }
 

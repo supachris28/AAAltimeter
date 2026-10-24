@@ -4,7 +4,7 @@ An Android Auto app that shows your GPS elevation over time as a chart, with an
 indicator for whether you're currently gaining or losing height.
 
 Status: **chart on the car screen**. While the app is open in Android Auto it records GPS
-altitude in the background and shows a chart of the last 30 minutes, the current elevation, and a
+altitude in the background and shows a chart of the last 30, 15 or 5 minutes or 30, 15, 5 or 1 miles, the current elevation, and a
 big climbing / descending / level indicator.
 
 ## Project layout
@@ -127,14 +127,20 @@ The DHU is a desktop window that pretends to be a car screen, driven by your rea
 The chart is drawn as a 640×400 image and placed in a pane template, which the car shows beside
 two text rows. Across the top of the image: current elevation on the left, and on the right an
 arrow with the rate (orange up for climbing, green down for descending, a grey bar for level).
-Below that is the smoothed altitude over the last 30 minutes (or the whole recording, at least
-5 minutes wide, if it's shorter). The altitude axis snaps to round numbers and never spans less than
+Below that is the smoothed altitude over the chosen range (30 minutes by default; see below). The altitude axis snaps to round numbers and never spans less than
 20 m, so GPS wobble on flat ground doesn't look like hills. Gaps of over a minute in GPS show as
 breaks in the line. The screen refreshes at most every 2 seconds, and follows the car's day/night
 mode. Cars with Car API level below 4 (rare) can't show pane images and get the text rows only.
 
 The phone app shows the same chart, drawn at the phone's screen resolution, under the status
 line. It updates with every GPS fix while the app is open.
+
+**Chart range.** The button in the car screen's top-right corner (and the **Chart range** button
+on the phone) steps through 30, 15 and 5 minutes, then 30, 15, 5 and 1 mile. Time ranges show the
+last N minutes; distance ranges show the last N miles driven, so while parked the line stops
+moving instead of scrolling away. The choice is remembered and shared between car and phone.
+Distance is measured from GPS position, only counting moves larger than the fix's accuracy (at
+least 5 m) so GPS wander while stationary doesn't add up.
 
 ## Why the POI category
 

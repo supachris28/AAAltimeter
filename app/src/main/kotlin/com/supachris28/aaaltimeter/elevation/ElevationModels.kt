@@ -4,12 +4,14 @@ package com.supachris28.aaaltimeter.elevation
  * One recorded altitude reading.
  *
  * [timeMillis] is a monotonic clock (elapsed realtime), not wall-clock time, so it never jumps
- * when the phone's clock is adjusted. Use differences between points, not absolute values.
+ * when the phone's clock is adjusted. [distanceMeters] is the distance travelled since the
+ * recording started. Use differences between points, not absolute values.
  */
 data class ElevationPoint(
     val timeMillis: Long,
     val rawMeters: Double,
     val smoothedMeters: Double,
+    val distanceMeters: Double = 0.0,
 )
 
 enum class Trend { CLIMBING, DESCENDING, LEVEL, UNKNOWN }

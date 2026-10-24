@@ -8,7 +8,9 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.supachris28.aaaltimeter.chart.ChartRangeSetting
 import com.supachris28.aaaltimeter.chart.ElevationChartRenderer
+import com.supachris28.aaaltimeter.chart.label
 import com.supachris28.aaaltimeter.elevation.ElevationRepository
 import com.supachris28.aaaltimeter.recording.ElevationRecordingService
 import kotlin.math.roundToInt
@@ -21,6 +23,7 @@ class MainActivity : Activity() {
 
     private lateinit var status: TextView
     private lateinit var chart: ImageView
+    private lateinit var rangeButton: Button
     private lateinit var renderer: ElevationChartRenderer
     private var chartScale = 1f
     private val onElevationChanged: () -> Unit = { updateStatus() }
@@ -42,6 +45,13 @@ class MainActivity : Activity() {
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(0, padding / 2, 0, padding / 2)
         }
+        // Steps through 30/15/5 min, then 30/15/5/1 mi. Shared with the car screen.
+        rangeButton = Button(this).apply {
+            setOnClickListener {
+                ChartRangeSetting.cycle(this@MainActivity)
+                updateStatus()
+            }
+        }
         setContentView(
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -52,6 +62,7 @@ class MainActivity : Activity() {
                 })
                 addView(status)
                 addView(chart)
+                addView(rangeButton)
                 addView(Button(this@MainActivity).apply {
                     setText(R.string.start_recording)
                     setOnClickListener { startRecording() }
@@ -104,7 +115,9 @@ class MainActivity : Activity() {
 
     private fun updateStatus() {
         val snapshot = ElevationRepository.snapshot
-        chart.setImageBitmap(renderer.render(snapshot, chartScale))
+        val range = ChartRangeSetting.get(this)
+        rangeButton.text = getString(R.string.range_button, range.label(this))
+        chart.setImageBitmap(renderer.render(snapshot, range, chartScale))
         val current = snapshot.current
         status.text = when {
             !ElevationRepository.isRecording -> getString(R.string.not_recording)

@@ -33,6 +33,18 @@ class ElevationTrackerTest {
     }
 
     @Test
+    fun distanceAccumulatesEvenAcrossRejectedFixes() {
+        val tracker = ElevationTracker()
+        tracker.add(0, 100.0, 0.0)
+        tracker.add(1000, 100.0, 10.0)
+        assertFalse(tracker.add(2000, 400.0, 10.0)) // altitude spike, but we still moved
+        tracker.addDistance(5.0) // fix with no altitude
+        tracker.add(3000, 100.0, 10.0)
+        val history = tracker.snapshot().history
+        assertEquals(listOf(0.0, 10.0, 35.0), history.map { it.distanceMeters })
+    }
+
+    @Test
     fun oldHistoryIsDropped() {
         val tracker = ElevationTracker(maxHistoryMillis = 60_000)
         for (s in 0..120) tracker.add(s * 1000L, 100.0)
