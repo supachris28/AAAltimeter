@@ -62,6 +62,18 @@ Command line build (from the repo root):
 CI also builds the debug APK on every push; you can download it from the run's
 **Artifacts** section on GitHub.
 
+### Installing the CI APK on your phone
+
+1. GitHub delivers the artifact as a **.zip**. Unzip it first; the phone can't install the zip
+   itself. Inside is `app-debug.apk`.
+2. Copy the APK to the phone and open it. Allow "Install unknown apps" for whichever app you opened
+   it from (Files, Chrome, Drive...) when prompted.
+3. If Play Protect warns about an unrecognised app, choose **More details → Install anyway**.
+4. **"App not installed" / "conflicts with an existing package"**: an earlier copy on the phone was
+   signed with a different key. Uninstall AAAltimeter from the phone, then install again. Debug
+   builds are now signed with the checked-in `app/debug.keystore`, so this should only happen
+   once; later CI APKs install as updates over each other.
+
 ## Running it
 
 ### Option A: Desktop Head Unit (DHU) on your computer
