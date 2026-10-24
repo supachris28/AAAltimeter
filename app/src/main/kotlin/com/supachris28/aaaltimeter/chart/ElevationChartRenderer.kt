@@ -9,7 +9,10 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import com.supachris28.aaaltimeter.R
+import com.supachris28.aaaltimeter.elevation.ChartAxis
+import com.supachris28.aaaltimeter.elevation.ChartRange
 import com.supachris28.aaaltimeter.elevation.ChartScale
+import com.supachris28.aaaltimeter.elevation.ElevationPoint
 import com.supachris28.aaaltimeter.elevation.ElevationSnapshot
 import com.supachris28.aaaltimeter.elevation.Trend
 import com.supachris28.aaaltimeter.elevation.downsample
@@ -22,7 +25,8 @@ import kotlin.math.roundToInt
  * POI apps can't draw on the car display directly, so the chart goes into the template as an
  * image. The phone app shows the same image, drawn at its screen resolution. The top strip
  * carries the big readouts: current elevation on the left, and the climbing / descending /
- * level indicator on the right (an arrow plus words, so it never relies on colour alone). Below it is the last [ChartScale.of] window of smoothed altitude.
+ * level indicator on the right (an arrow plus words, so it never relies on colour alone).
+ * Below it is smoothed altitude over the chosen [ChartRange] of time or distance.
  *
  * Layout is in a fixed 640×400 coordinate space. The bitmap is opaque RGB_565 to halve its
  * size: it is sent to the car host over IPC on every refresh, and very large images can be
@@ -47,7 +51,7 @@ class ElevationChartRenderer(private val context: Context, private val dark: Boo
     private val text = Paint(Paint.ANTI_ALIAS_FLAG)
 
     /** Returns a [WIDTH]×[HEIGHT] bitmap, or that size times [pixelScale]. */
-    fun render(snapshot: ElevationSnapshot, pixelScale: Float = 1f): Bitmap {
+    fun render(snapshot: ElevationSnapshot, range: ChartRange, pixelScale: Float = 1f): Bitmap {
         val width = WIDTH
         val height = HEIGHT
         val bitmap = Bitmap.createBitmap(
@@ -60,7 +64,7 @@ class ElevationChartRenderer(private val context: Context, private val dark: Boo
         canvas.drawColor(surface)
         drawHeader(canvas, snapshot, width.toFloat())
         val plot = RectF(0f, HEADER_HEIGHT + 24f, width - PADDING, height - 40f)
-        val scale = ChartScale.of(snapshot.history)
+        val scale = ChartScale.of(snapshot.history, range)
         if (scale == null) {
             text.textStyle(textSecondary, 26f, bold = false, align = Paint.Align.CENTER)
             canvas.drawText(context.getString(R.string.no_data), width / 2f, plot.centerY(), text)
@@ -129,7 +133,7 @@ class ElevationChartRenderer(private val context: Context, private val dark: Boo
         val labels = scale.gridLines.map { it to context.getString(R.string.meters, it.roundToInt()) }
         val labelWidth = labels.maxOf { text.measureText(it.second) }
         val plot = RectF(PADDING + labelWidth + 12f, area.top, area.right, area.bottom)
-        fun px(time: Long) = plot.left + (scale.x(time) * plot.width()).toFloat()
+        fun px(point: ElevationPoint) = plot.left + (scale.x(point) * plot.width()).toFloat()
         fun py(meters: Double) = plot.bottom - (scale.y(meters) * plot.height()).toFloat()
 
         stroke.color = grid
@@ -140,23 +144,24 @@ class ElevationChartRenderer(private val context: Context, private val dark: Boo
             canvas.drawText(label, plot.left - 12f, y + 8f, text)
         }
 
-        // Time labels along the bottom: the start of the window and "now".
+        // Labels along the bottom: how far back the left edge is, and "now".
         text.textStyle(textSecondary, 22f, bold = false, align = Paint.Align.LEFT)
-        val minutes = (scale.spanMillis / 60_000.0).roundToInt()
-        canvas.drawText(context.getString(R.string.minutes_ago, minutes), plot.left, plot.bottom + 32f, text)
+        val ago = context.getString(R.string.range_ago, scale.range.label(context))
+        canvas.drawText(ago, plot.left, plot.bottom + 32f, text)
         text.textAlign = Paint.Align.RIGHT
         canvas.drawText(context.getString(R.string.now), plot.right, plot.bottom + 32f, text)
 
         val points = downsample(
-            ChartScale.visiblePoints(snapshot.history, scale.spanMillis),
+            ChartScale.visiblePoints(snapshot.history, scale.range),
             scale,
             plot.width().toInt() / 2,
         )
-        // Split the line wherever GPS dropped out, rather than drawing a misleading straight join.
+        // On a time axis, split the line wherever GPS dropped out rather than drawing a misleading
+        // straight join. On a distance axis a long gap in time is usually just being parked.
         val segments = mutableListOf(mutableListOf(points.first()))
         for ((previous, point) in points.zipWithNext()) {
-            if (point.timeMillis - previous.timeMillis > GAP_MILLIS) segments += mutableListOf(point)
-            else segments.last() += point
+            val gap = scale.range.axis == ChartAxis.TIME && point.timeMillis - previous.timeMillis > GAP_MILLIS
+            if (gap) segments += mutableListOf(point) else segments.last() += point
         }
 
         canvas.save()
@@ -165,12 +170,12 @@ class ElevationChartRenderer(private val context: Context, private val dark: Boo
             if (segment.size < 2) continue
             val path = Path()
             segment.forEachIndexed { i, p ->
-                if (i == 0) path.moveTo(px(p.timeMillis), py(p.smoothedMeters))
-                else path.lineTo(px(p.timeMillis), py(p.smoothedMeters))
+                if (i == 0) path.moveTo(px(p), py(p.smoothedMeters))
+                else path.lineTo(px(p), py(p.smoothedMeters))
             }
             val under = Path(path).apply {
-                lineTo(px(segment.last().timeMillis), plot.bottom)
-                lineTo(px(segment.first().timeMillis), plot.bottom)
+                lineTo(px(segment.last()), plot.bottom)
+                lineTo(px(segment.first()), plot.bottom)
                 close()
             }
             fill.color = Color.argb(56, Color.red(line), Color.green(line), Color.blue(line))
@@ -183,7 +188,7 @@ class ElevationChartRenderer(private val context: Context, private val dark: Boo
 
         // Current position: a dot with a surface-coloured ring so it stands off the line.
         val last = points.last()
-        val x = px(last.timeMillis)
+        val x = px(last)
         val y = py(last.smoothedMeters)
         fill.color = surface
         canvas.drawCircle(x, y, 11f, fill)

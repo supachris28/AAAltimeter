@@ -31,10 +31,17 @@ object ElevationRepository {
         listeners -= listener
     }
 
-    /** Called from the recording thread with each GPS fix. */
-    fun onAltitude(timeMillis: Long, altitudeMeters: Double) {
+    /**
+     * Called from the recording thread with each GPS fix. [altitudeMeters] is null when the fix
+     * has no usable altitude; the distance moved still counts.
+     */
+    fun onLocation(timeMillis: Long, altitudeMeters: Double?, distanceDeltaMeters: Double) {
         synchronized(tracker) {
-            if (!tracker.add(timeMillis, altitudeMeters)) return
+            if (altitudeMeters == null) {
+                tracker.addDistance(distanceDeltaMeters)
+                return
+            }
+            if (!tracker.add(timeMillis, altitudeMeters, distanceDeltaMeters)) return
             snapshot = tracker.snapshot()
         }
         notifyListeners()

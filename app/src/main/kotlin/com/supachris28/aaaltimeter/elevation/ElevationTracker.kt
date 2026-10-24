@@ -10,14 +10,24 @@ class ElevationTracker(
     private val trendDetector: TrendDetector = TrendDetector(),
 ) {
     private val points = ArrayDeque<ElevationPoint>()
+    private var distanceMeters = 0.0
 
-    /** Adds a raw GPS reading. Returns false if it was rejected as noise. */
-    fun add(timeMillis: Long, altitudeMeters: Double): Boolean {
+    /**
+     * Adds a raw GPS reading, having moved [distanceDeltaMeters] since the previous fix.
+     * Returns false if the altitude was rejected as noise; the distance still counts.
+     */
+    fun add(timeMillis: Long, altitudeMeters: Double, distanceDeltaMeters: Double = 0.0): Boolean {
+        addDistance(distanceDeltaMeters)
         val smoothed = smoother.add(timeMillis, altitudeMeters) ?: return false
-        points.addLast(ElevationPoint(timeMillis, altitudeMeters, smoothed))
+        points.addLast(ElevationPoint(timeMillis, altitudeMeters, smoothed, distanceMeters))
         while (timeMillis - points.first().timeMillis > maxHistoryMillis) points.removeFirst()
         trendDetector.update(points)
         return true
+    }
+
+    /** For fixes with a position but no usable altitude. */
+    fun addDistance(meters: Double) {
+        distanceMeters += meters
     }
 
     fun snapshot(): ElevationSnapshot = ElevationSnapshot(
@@ -28,6 +38,7 @@ class ElevationTracker(
 
     fun clear() {
         points.clear()
+        distanceMeters = 0.0
         smoother.reset()
         trendDetector.reset()
     }

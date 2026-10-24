@@ -36,6 +36,10 @@ class ElevationRecordingService : Service() {
     private lateinit var locationManager: LocationManager
     private var listening = false
 
+    // Last position we measured distance from. Only moved on once we've clearly travelled, so
+    // GPS wander while parked doesn't add up to phantom miles.
+    private var distanceAnchor: Location? = null
+
     // Created lazily: loading the geoid model is slow, and it only exists on Android 14+.
     private var altitudeConverter: Any? = null
 
@@ -104,12 +108,30 @@ class ElevationRecordingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun handleLocation(location: Location) {
-        if (!location.hasAltitude()) return
-        if (location.hasVerticalAccuracy() &&
-            location.verticalAccuracyMeters > MAX_VERTICAL_ACCURACY_METERS
-        ) return
-        // elapsedRealtimeNanos is monotonic, unlike location.time (wall clock).
-        ElevationRepository.onAltitude(location.elapsedRealtimeNanos / 1_000_000, seaLevelAltitude(location))
+        val distance = distanceMoved(location)
+        val altitudeOk = location.hasAltitude() &&
+            !(location.hasVerticalAccuracy() && location.verticalAccuracyMeters > MAX_VERTICAL_ACCURACY_METERS)
+        ElevationRepository.onLocation(
+            // elapsedRealtimeNanos is monotonic, unlike location.time (wall clock).
+            location.elapsedRealtimeNanos / 1_000_000,
+            if (altitudeOk) seaLevelAltitude(location) else null,
+            distance,
+        )
+    }
+
+    /** Metres travelled since the last counted position, or 0 if we haven't clearly moved. */
+    private fun distanceMoved(location: Location): Double {
+        if (location.hasAccuracy() && location.accuracy > MAX_HORIZONTAL_ACCURACY_METERS) return 0.0
+        val anchor = distanceAnchor
+        if (anchor == null) {
+            distanceAnchor = location
+            return 0.0
+        }
+        val meters = anchor.distanceTo(location)
+        val threshold = maxOf(MIN_DISTANCE_STEP_METERS, if (location.hasAccuracy()) location.accuracy else 0f)
+        if (meters < threshold) return 0.0
+        distanceAnchor = location
+        return meters.toDouble()
     }
 
     /**
@@ -175,6 +197,8 @@ class ElevationRecordingService : Service() {
         private const val ACTION_STOP = "com.supachris28.aaaltimeter.STOP_RECORDING"
         private const val UPDATE_INTERVAL_MILLIS = 1_000L
         private const val MAX_VERTICAL_ACCURACY_METERS = 50f
+        private const val MAX_HORIZONTAL_ACCURACY_METERS = 50f
+        private const val MIN_DISTANCE_STEP_METERS = 5f
 
         val LOCATION_PERMISSIONS = listOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
