@@ -5,7 +5,7 @@ enum class ChartAxis { TIME, DISTANCE }
 
 /**
  * How far back the chart looks: a span of time or of distance travelled, ending "now" at the
- * right edge. The order here is the order the range button cycles through.
+ * right edge. The order here is the order the options are listed in.
  */
 enum class ChartRange(val axis: ChartAxis, val amount: Int, val span: Double) {
     MINUTES_30(ChartAxis.TIME, 30, 30 * MILLIS_PER_MINUTE),
@@ -21,8 +21,6 @@ enum class ChartRange(val axis: ChartAxis, val amount: Int, val span: Double) {
         ChartAxis.TIME -> point.timeMillis.toDouble()
         ChartAxis.DISTANCE -> point.distanceMeters
     }
-
-    fun next(): ChartRange = entries[(ordinal + 1) % entries.size]
 
     companion object {
         val DEFAULT = MINUTES_30

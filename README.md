@@ -129,17 +129,23 @@ The DHU is a desktop window that pretends to be a car screen, driven by your rea
 
 The chart is drawn as a 640×400 image and placed in a pane template, which the car shows beside
 two text rows. Across the top of the image: current elevation on the left, and on the right an
-arrow with the rate (orange up for climbing, green down for descending, a grey bar for level).
-Below that is the smoothed altitude over the chosen range (30 minutes by default; see below). The altitude axis snaps to round numbers and never spans less than
-20 m, so GPS wobble on flat ground doesn't look like hills. Gaps of over a minute in GPS show as
+arrow with the rate (copper up for climbing, steel blue down for descending, a grey bar for level).
+Below that is the smoothed altitude over the chosen range (30 minutes by default; see below).
+The altitude axis snaps to round numbers and never spans less than 20 m, so GPS wobble on flat ground doesn't look like hills. Gaps of over a minute in GPS show as
 breaks in the line. The screen refreshes at most every 2 seconds, and follows the car's day/night
 mode. Cars with Car API level below 4 (rare) can't show pane images and get the text rows only.
 
 The phone app shows the same chart, drawn at the phone's screen resolution, under the status
-line. It updates with every GPS fix while the app is open.
+line. It updates with every GPS fix while the app is open, and follows the phone's dark mode.
 
-**Chart range.** The button in the car screen's top-right corner (and the **Chart range** button
-on the phone) steps through 30, 15 and 5 minutes, then 30, 15, 5 and 1 mile. Time ranges show the
+**Colours.** A restrained scheme: warm ivory on deep charcoal at night, near-black on warm paper
+by day, with champagne gold as the one accent (the elevation line). All chart colours live in
+`chart/ChartPalette.kt`; the phone theme mirrors them in `res/values(-night)/colors.xml`.
+
+**Chart range.** Tap the range button in the car screen's top-right corner to open a list of
+ranges and pick one: 30, 15 or 5 minutes, or 30, 15, 5 or 1 mile. If the car shows fewer than 7
+list rows, it asks "Time or distance?" first. On the phone, pick from the **Chart range**
+dropdown under the chart. Time ranges show the
 last N minutes; distance ranges show the last N miles driven, so while parked the line stops
 moving instead of scrolling away. The choice is remembered and shared between car and phone.
 Distance is measured from GPS position, only counting moves larger than the fix's accuracy (at

@@ -21,7 +21,17 @@
     <string name="range_ago">−%1$s</string>
     <string name="range_minutes">%1$d min</string>
     <string name="range_miles">%1$d mi</string>
-    <string name="range_button">Chart range: %1$s</string>
+    <string name="chart_range">Chart range</string>
+    <string name="range_time">Time</string>
+    <string name="range_distance">Distance</string>
+    <plurals name="range_last_minutes">
+        <item quantity="one">Last %1$d minute</item>
+        <item quantity="other">Last %1$d minutes</item>
+    </plurals>
+    <plurals name="range_last_miles">
+        <item quantity="one">Last %1$d mile</item>
+        <item quantity="other">Last %1$d miles</item>
+    </plurals>
     <string name="now">now</string>
 
     <string name="permission_needed">Location permission needed</string>

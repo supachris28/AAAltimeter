@@ -4,9 +4,11 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import com.supachris28.aaaltimeter.R
 import com.supachris28.aaaltimeter.elevation.ChartAxis
@@ -34,15 +36,17 @@ import kotlin.math.roundToInt
  */
 class ElevationChartRenderer(private val context: Context, private val dark: Boolean) {
 
-    private val surface = if (dark) 0xFF1A1A19.toInt() else 0xFFFCFCFB.toInt()
-    private val textPrimary = if (dark) 0xFFF0EFEC.toInt() else 0xFF0B0B0B.toInt()
-    private val textSecondary = if (dark) 0xFFC3C2B7.toInt() else 0xFF52514E.toInt()
-    private val grid = if (dark) 0xFF383835.toInt() else 0xFFE4E3DF.toInt()
-    private val line = if (dark) 0xFF3987E5.toInt() else 0xFF2A78D6.toInt()
-    private val climbing = if (dark) 0xFFD95926.toInt() else 0xFFEB6834.toInt()
-    private val descending = if (dark) 0xFF199E70.toInt() else 0xFF1BAF7A.toInt()
+    private val palette = ChartPalette.of(dark)
+    private val surface = palette.surface
+    private val textPrimary = palette.textPrimary
+    private val textSecondary = palette.textSecondary
+    private val grid = palette.grid
+    private val line = palette.accent
+    private val climbing = palette.climbing
+    private val descending = palette.descending
 
-    private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    // Dither so the fill gradient doesn't band in the RGB_565 bitmap.
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG or Paint.DITHER_FLAG).apply { style = Paint.Style.FILL }
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
@@ -78,9 +82,11 @@ class ElevationChartRenderer(private val context: Context, private val dark: Boo
         val current = snapshot.current
         val elevation = current?.let { context.getString(R.string.meters, it.smoothedMeters.roundToInt()) } ?: "–"
         text.textStyle(textPrimary, 64f, bold = true, align = Paint.Align.LEFT)
+        text.letterSpacing = -0.02f
         canvas.drawText(elevation, PADDING, 72f, text)
-        text.textStyle(textSecondary, 24f, bold = false, align = Paint.Align.LEFT)
-        canvas.drawText(context.getString(R.string.elevation), PADDING, 106f, text)
+        text.textStyle(textSecondary, 20f, bold = false, align = Paint.Align.LEFT)
+        text.letterSpacing = 0.12f
+        canvas.drawText(context.getString(R.string.elevation).uppercase(), PADDING, 104f, text)
 
         val rate = abs(snapshot.metersPerMinute ?: 0.0).roundToInt()
         val (headline, caption, colour) = when (snapshot.trend) {
@@ -95,11 +101,13 @@ class ElevationChartRenderer(private val context: Context, private val dark: Boo
         }
         val right = width - PADDING
         text.textStyle(textPrimary, 52f, bold = true, align = Paint.Align.RIGHT)
+        text.letterSpacing = -0.02f
         canvas.drawText(headline, right, 68f, text)
         val arrowRight = right - text.measureText(headline) - 16f
         drawTrendMark(canvas, snapshot.trend, arrowRight, 50f, colour)
-        text.textStyle(textSecondary, 24f, bold = false, align = Paint.Align.RIGHT)
-        canvas.drawText(caption, right, 106f, text)
+        text.textStyle(textSecondary, 20f, bold = false, align = Paint.Align.RIGHT)
+        text.letterSpacing = 0.12f
+        canvas.drawText(caption.uppercase(), right, 104f, text)
     }
 
     /** A filled triangle for climbing/descending, a bar for level, centred vertically on [cy]. */
@@ -137,7 +145,7 @@ class ElevationChartRenderer(private val context: Context, private val dark: Boo
         fun py(meters: Double) = plot.bottom - (scale.y(meters) * plot.height()).toFloat()
 
         stroke.color = grid
-        stroke.strokeWidth = 2f
+        stroke.strokeWidth = 1.5f
         for ((meters, label) in labels) {
             val y = py(meters)
             canvas.drawLine(plot.left, y, plot.right, y, stroke)
@@ -178,10 +186,17 @@ class ElevationChartRenderer(private val context: Context, private val dark: Boo
                 lineTo(px(segment.first()), plot.bottom)
                 close()
             }
-            fill.color = Color.argb(56, Color.red(line), Color.green(line), Color.blue(line))
+            // A soft wash of the accent that fades towards the bottom of the plot.
+            fill.shader = LinearGradient(
+                0f, plot.top, 0f, plot.bottom,
+                Color.argb(72, Color.red(line), Color.green(line), Color.blue(line)),
+                Color.argb(0, Color.red(line), Color.green(line), Color.blue(line)),
+                Shader.TileMode.CLAMP,
+            )
             canvas.drawPath(under, fill)
+            fill.shader = null
             stroke.color = line
-            stroke.strokeWidth = 4f
+            stroke.strokeWidth = 3.5f
             canvas.drawPath(path, stroke)
         }
         canvas.restore()
@@ -196,11 +211,13 @@ class ElevationChartRenderer(private val context: Context, private val dark: Boo
         canvas.drawCircle(x, y, 8f, fill)
     }
 
+    /** Medium weight for the big numbers rather than heavy bold; regular for labels. */
     private fun Paint.textStyle(colour: Int, size: Float, bold: Boolean, align: Paint.Align) {
         color = colour
         textSize = size
-        typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        typeface = if (bold) MEDIUM else Typeface.DEFAULT
         textAlign = align
+        letterSpacing = 0f
     }
 
     companion object {
@@ -210,5 +227,6 @@ class ElevationChartRenderer(private val context: Context, private val dark: Boo
         private const val PADDING = 20f
         private const val HEADER_HEIGHT = 112f
         private const val GAP_MILLIS = 60_000L
+        private val MEDIUM: Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
     }
 }

@@ -14,11 +14,8 @@ object ChartRangeSetting {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_RANGE, null)
     )
 
-    /** Moves to the next range and returns it. */
-    fun cycle(context: Context): ChartRange {
-        val next = get(context).next()
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_RANGE, next.name).apply()
-        return next
+    fun set(context: Context, range: ChartRange) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_RANGE, range.name).apply()
     }
 }
 
@@ -26,4 +23,10 @@ object ChartRangeSetting {
 fun ChartRange.label(context: Context): String = when (axis) {
     ChartAxis.TIME -> context.getString(R.string.range_minutes, amount)
     ChartAxis.DISTANCE -> context.getString(R.string.range_miles, amount)
+}
+
+/** Label for pickers, such as "Last 15 minutes" or "Last 1 mile". */
+fun ChartRange.longLabel(context: Context): String = when (axis) {
+    ChartAxis.TIME -> context.resources.getQuantityString(R.plurals.range_last_minutes, amount, amount)
+    ChartAxis.DISTANCE -> context.resources.getQuantityString(R.plurals.range_last_miles, amount, amount)
 }

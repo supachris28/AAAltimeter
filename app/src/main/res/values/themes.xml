@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light by day; values-night switches the parent and colours when the phone is in dark mode. -->
+    <style name="Theme.AAAltimeter" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorBackground">@color/surface</item>
+        <item name="android:windowBackground">@color/surface</item>
+        <item name="android:statusBarColor">@color/surface</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:colorPrimary">@color/surface</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:colorControlActivated">@color/accent</item>
+    </style>
+</resources>
