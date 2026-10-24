@@ -36,4 +36,7 @@ dependencies {
     implementation(libs.androidx.car.app)
     // Lets the app run on Android Auto (phone projected to the car screen).
     implementation(libs.androidx.car.app.projected)
+    implementation(libs.androidx.lifecycle.common)
+
+    testImplementation(libs.junit)
 }

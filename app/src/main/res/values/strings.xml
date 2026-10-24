@@ -4,5 +4,22 @@
     <string name="elevation">Elevation</string>
     <string name="trend">Trend</string>
     <string name="no_data">Waiting for GPS…</string>
-    <string name="phone_message">AAAltimeter runs on your car screen. Connect to Android Auto (or the Desktop Head Unit) to use it.</string>
+    <string name="phone_message">AAAltimeter runs on your car screen. Connect to Android Auto (or the Desktop Head Unit) to use it. You can also start recording here to test it.</string>
+    <string name="phone_status">Elevation %1$d m, %2$s (%3$d readings)</string>
+
+    <string name="meters">%1$d m</string>
+    <string name="trend_unknown">Gathering data…</string>
+    <string name="trend_level">Level</string>
+    <string name="trend_climbing">▲ Climbing, %1$d m/min</string>
+    <string name="trend_descending">▼ Descending, %1$d m/min</string>
+
+    <string name="permission_needed">Location permission needed</string>
+    <string name="grant_permission">Grant on phone</string>
+    <string name="not_recording">Not recording</string>
+    <string name="start_recording">Start recording</string>
+    <string name="stop_recording">Stop recording</string>
+
+    <string name="recording_channel">Elevation recording</string>
+    <string name="recording_title">Recording elevation</string>
+    <string name="recording_text">Using GPS to track your altitude.</string>
 </resources>
