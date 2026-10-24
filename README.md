@@ -74,6 +74,9 @@ CI also builds the debug APK on every push; you can download it from the run's
    signed with a different key. Uninstall AAAltimeter from the phone, then install again. Debug
    builds are now signed with the checked-in `app/debug.keystore`, so this should only happen
    once; later CI APKs install as updates over each other.
+5. The bottom of the phone screen shows **Version 0.1.N (build N)**, where N is the GitHub Actions
+   run number. Check it after installing to confirm the update took. Use the newest run's APK:
+   an older run has a lower build number and Android won't install it over a newer one.
 
 ## Running it
 

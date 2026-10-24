@@ -60,6 +60,7 @@ class MainActivity : Activity() {
                     setText(R.string.stop_recording)
                     setOnClickListener { ElevationRecordingService.stop(this@MainActivity) }
                 })
+                addView(TextView(this@MainActivity).apply { text = versionLabel() })
             }
         )
     }
@@ -100,6 +101,18 @@ class MainActivity : Activity() {
             ElevationRecordingService.start(this)
             updateStatus()
         }
+    }
+
+    /** Shows which build is installed, so you can tell an update actually took. */
+    private fun versionLabel(): String {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            info.versionCode.toLong()
+        }
+        return getString(R.string.version_label, info.versionName, code)
     }
 
     private fun updateStatus() {
