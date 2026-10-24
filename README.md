@@ -3,8 +3,9 @@
 An Android Auto app that shows your GPS elevation over time as a chart, with an
 indicator for whether you're currently gaining or losing height.
 
-Status: **scaffold only**. The app installs, appears in Android Auto, and shows a
-placeholder screen. GPS recording and the chart come next.
+Status: **recording works, chart next**. While the app is open in Android Auto it records GPS
+altitude in the background and shows the current elevation and whether you're climbing,
+descending or level. The elevation chart comes next.
 
 ## Project layout
 
@@ -17,6 +18,9 @@ app/src/main/
     car/AltimeterCarAppService.kt   Entry point Android Auto binds to
     car/AltimeterSession.kt    One session per car connection
     car/AltimeterScreen.kt     The screen shown on the car display
+    recording/ElevationRecordingService.kt   Foreground service that listens to GPS
+    elevation/                 Smoothing, trend detection and history (plain Kotlin, unit tested)
+app/src/test/                  JVM unit tests (./gradlew testDebugUnitTest)
 gradle/libs.versions.toml      All dependency and plugin versions in one place
 .github/workflows/build.yml    CI: builds a debug APK on every push / PR
 ```
@@ -87,6 +91,23 @@ The DHU is a desktop window that pretends to be a car screen, driven by your rea
    onto the phone and open it).
 3. Plug into the car (or connect wirelessly). AAAltimeter shows up in the Android Auto launcher.
    If it doesn't, double-check **Unknown sources** is on; Android Auto hides sideloaded apps without it.
+
+## How elevation is worked out
+
+- **Recording.** Opening the app on the car screen starts a foreground service (you'll see a
+  "Recording elevation" notification on the phone) that asks for a GPS fix every second. Closing
+  the app in the car stops it. The phone screen also has Start/Stop buttons for testing without a car.
+  The first time, tap **Grant on phone** on the car screen (or Start on the phone) to allow location.
+- **Sea level.** GPS measures height above a mathematical ellipsoid, which in the UK is about 50 m
+  off real height above sea level. On Android 14+ the app corrects for this with Android's built-in
+  geoid model; on older phones it shows the raw GPS value. The trend is unaffected.
+- **Smoothing.** GPS altitude jitters by 5 to 20 m. Readings with poor vertical accuracy (over 50 m)
+  are dropped, readings implying more than 20 m/s vertical speed are treated as spikes, and the rest go
+  through a time-weighted moving average (about 15 s lag).
+- **Trend.** A straight line is fitted through the last 60 s of smoothed altitude. Climbing or
+  descending needs at least 9 m/min (roughly a 1% gradient at 50 km/h) to start, and drops back to
+  level below 4.5 m/min, so the indicator doesn't flicker.
+- **History.** The last 3 hours are kept in memory for the chart. Nothing is saved to disk yet.
 
 ## Why the POI category
 
