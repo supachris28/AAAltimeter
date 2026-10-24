@@ -15,6 +15,18 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        // Checked-in debug key (standard public debug passwords, not a secret) so every
+        // machine and CI run signs debug APKs the same way. Without it each CI runner makes
+        // its own random key and a new APK won't install over an older one.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
