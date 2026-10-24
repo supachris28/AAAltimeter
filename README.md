@@ -3,9 +3,9 @@
 An Android Auto app that shows your GPS elevation over time as a chart, with an
 indicator for whether you're currently gaining or losing height.
 
-Status: **recording works, chart next**. While the app is open in Android Auto it records GPS
-altitude in the background and shows the current elevation and whether you're climbing,
-descending or level. The elevation chart comes next.
+Status: **chart on the car screen**. While the app is open in Android Auto it records GPS
+altitude in the background and shows a chart of the last 30 minutes, the current elevation, and a
+big climbing / descending / level indicator.
 
 ## Project layout
 
@@ -18,6 +18,7 @@ app/src/main/
     car/AltimeterCarAppService.kt   Entry point Android Auto binds to
     car/AltimeterSession.kt    One session per car connection
     car/AltimeterScreen.kt     The screen shown on the car display
+    car/ElevationChartRenderer.kt   Draws the chart and indicator as a bitmap
     recording/ElevationRecordingService.kt   Foreground service that listens to GPS
     elevation/                 Smoothing, trend detection and history (plain Kotlin, unit tested)
 app/src/test/                  JVM unit tests (./gradlew testDebugUnitTest)
@@ -107,7 +108,18 @@ The DHU is a desktop window that pretends to be a car screen, driven by your rea
 - **Trend.** A straight line is fitted through the last 60 s of smoothed altitude. Climbing or
   descending needs at least 9 m/min (roughly a 1% gradient at 50 km/h) to start, and drops back to
   level below 4.5 m/min, so the indicator doesn't flicker.
-- **History.** The last 3 hours are kept in memory for the chart. Nothing is saved to disk yet.
+- **History.** The last 3 hours are kept in memory. Nothing is saved to disk yet.
+
+## The car screen
+
+The chart is drawn as a 640×400 image and placed in a pane template, which the car shows beside
+two text rows. Across the top of the image: current elevation on the left, and on the right an
+arrow with the rate (orange up for climbing, green down for descending, a grey bar for level).
+Below that is the smoothed altitude over the last 30 minutes (or the whole recording, at least
+5 minutes wide, if it's shorter). The altitude axis snaps to round numbers and never spans less than
+20 m, so GPS wobble on flat ground doesn't look like hills. Gaps of over a minute in GPS show as
+breaks in the line. The screen refreshes at most every 2 seconds, and follows the car's day/night
+mode. Cars with Car API level below 4 (rare) can't show pane images and get the text rows only.
 
 ## Why the POI category
 
@@ -115,7 +127,7 @@ Every Android Auto app has to declare a category in the manifest, and the Play S
 car apps in specific categories (navigation, POI, parking, charging, IoT, media, messaging, weather,
 and a few others). An altimeter isn't any of these exactly. **POI** (point of interest) is the closest
 non-navigation fit: it gives us list, pane and grid templates, and doesn't require turn-by-turn
-directions. The elevation chart will be rendered as an image inside those templates.
+directions. The elevation chart is rendered as an image inside a pane template.
 
 The alternative is **navigation**, which unlocks drawing directly on the car screen (a smoother
 live chart), but Play Store review expects navigation apps to actually navigate. For sideloading it

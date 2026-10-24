@@ -6,10 +6,13 @@ import android.os.SystemClock
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
+import androidx.car.app.model.CarIcon
 import androidx.car.app.model.Pane
 import androidx.car.app.model.PaneTemplate
 import androidx.car.app.model.Row
 import androidx.car.app.model.Template
+import androidx.car.app.versioning.CarAppApiLevels
+import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.supachris28.aaaltimeter.R
@@ -20,7 +23,9 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Car screen showing the current elevation and trend as text. The chart arrives in step 3.
+ * Car screen: the elevation-over-time chart with the big climbing / descending / level readout,
+ * plus the same numbers as text rows. Hosts older than Car API level 4 can't show a pane image,
+ * so they get the text rows only.
  */
 class AltimeterScreen(carContext: CarContext) : Screen(carContext) {
 
@@ -76,6 +81,10 @@ class AltimeterScreen(carContext: CarContext) : Screen(carContext) {
                     .addText(trendText)
                     .build()
             )
+        if (hasPermission && current != null && carContext.carAppApiLevel >= CarAppApiLevels.LEVEL_4) {
+            val chart = ElevationChartRenderer(carContext, carContext.isDarkMode).render(snapshot)
+            pane.setImage(CarIcon.Builder(IconCompat.createWithBitmap(chart)).build())
+        }
         when {
             !hasPermission -> pane.addAction(
                 Action.Builder()

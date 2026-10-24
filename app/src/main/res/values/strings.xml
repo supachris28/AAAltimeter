@@ -13,6 +13,14 @@
     <string name="trend_climbing">▲ Climbing, %1$d m/min</string>
     <string name="trend_descending">▼ Descending, %1$d m/min</string>
 
+    <!-- Chart image -->
+    <string name="climbing">Climbing</string>
+    <string name="descending">Descending</string>
+    <string name="rate_up">+%1$d m/min</string>
+    <string name="rate_down">−%1$d m/min</string>
+    <string name="minutes_ago">−%1$d min</string>
+    <string name="now">now</string>
+
     <string name="permission_needed">Location permission needed</string>
     <string name="grant_permission">Grant on phone</string>
     <string name="not_recording">Not recording</string>
