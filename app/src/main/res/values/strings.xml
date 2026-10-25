@@ -44,4 +44,15 @@
     <string name="recording_channel">Elevation recording</string>
     <string name="recording_title">Recording elevation</string>
     <string name="recording_text">Using GPS to track your altitude.</string>
+    <string name="watching_channel">Waiting for Android Auto</string>
+    <string name="watching_title">Ready to record</string>
+    <string name="watching_text">Recording starts when you connect to Android Auto.</string>
+
+    <string name="auto_record">Record automatically with Android Auto</string>
+    <string name="auto_record_hint">Records the whole drive whenever your phone is connected to Android Auto, even if AAAltimeter isn\'t open on the car screen.</string>
+    <string name="auto_record_permission_title">Allow location all the time</string>
+    <string name="auto_record_permission_message">To start recording when Android Auto connects, while the app isn\'t on screen, Android needs location set to \"Allow all the time\". On the next screen, choose that option, then come back.</string>
+    <string name="auto_record_permission_denied">Auto-record needs location set to \"Allow all the time\". You can change it in Settings › Apps › AAAltimeter › Permissions › Location.</string>
+    <string name="continue_label">Continue</string>
+    <string name="cancel_label">Cancel</string>
 </resources>

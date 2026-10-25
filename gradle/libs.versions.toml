@@ -10,6 +10,7 @@ androidx-car-app = { group = "androidx.car.app", name = "app", version.ref = "ca
 androidx-car-app-projected = { group = "androidx.car.app", name = "app-projected", version.ref = "carApp" }
 
 androidx-lifecycle-common = { group = "androidx.lifecycle", name = "lifecycle-common", version.ref = "lifecycle" }
+androidx-lifecycle-livedata-core = { group = "androidx.lifecycle", name = "lifecycle-livedata-core", version.ref = "lifecycle" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

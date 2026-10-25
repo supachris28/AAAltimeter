@@ -2,6 +2,8 @@ package com.supachris28.aaaltimeter
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Typeface
 import android.os.Build
@@ -14,12 +16,14 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
+import android.widget.Switch
 import android.widget.TextView
 import com.supachris28.aaaltimeter.chart.ChartRangeSetting
 import com.supachris28.aaaltimeter.chart.ElevationChartRenderer
 import com.supachris28.aaaltimeter.chart.longLabel
 import com.supachris28.aaaltimeter.elevation.ChartRange
 import com.supachris28.aaaltimeter.elevation.ElevationRepository
+import com.supachris28.aaaltimeter.recording.AutoRecordSetting
 import com.supachris28.aaaltimeter.recording.ElevationRecordingService
 import kotlin.math.roundToInt
 
@@ -32,6 +36,10 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var chart: ImageView
     private lateinit var rangePicker: Spinner
+    private lateinit var autoRecordSwitch: Switch
+    // True while we're walking through the permission prompts, so onResume doesn't untick the
+    // switch half way through.
+    private var settingUpAutoRecord = false
     private lateinit var renderer: ElevationChartRenderer
     private var chartScale = 1f
     private val onElevationChanged: () -> Unit = { updateStatus() }
@@ -101,6 +109,18 @@ class MainActivity : Activity() {
                 setText(R.string.stop_recording)
                 setOnClickListener { ElevationRecordingService.stop(this@MainActivity) }
             })
+            autoRecordSwitch = Switch(this@MainActivity).apply {
+                setText(R.string.auto_record)
+                textSize = 16f
+                setPadding(0, padding / 2, 0, 0)
+                setOnClickListener { onAutoRecordToggled(isChecked) }
+            }
+            addView(autoRecordSwitch)
+            addView(TextView(this@MainActivity).apply {
+                setText(R.string.auto_record_hint)
+                setTextColor(getColor(R.color.text_secondary))
+                setPadding(0, 0, 0, padding / 2)
+            })
             addView(TextView(this@MainActivity).apply { text = versionLabel() })
         }
         // The app draws edge to edge (enforced from Android 15), so keep content clear of the
@@ -122,24 +142,87 @@ class MainActivity : Activity() {
         ElevationRepository.addListener(onElevationChanged)
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Also catches coming back from the "Allow all the time" settings page, or the
+        // permission having been revoked since.
+        if (!settingUpAutoRecord) {
+            autoRecordSwitch.isChecked =
+                AutoRecordSetting.isEnabled(this) && AutoRecordSetting.hasBackgroundLocation(this)
+        }
+        // Make sure the watcher is running (e.g. after the app was force-stopped).
+        ElevationRecordingService.startWatching(this)
+    }
+
     override fun onStop() {
         ElevationRepository.removeListener(onElevationChanged)
         super.onStop()
     }
 
     private fun startRecording() {
-        val missing = buildList {
-            addAll(ElevationRecordingService.LOCATION_PERMISSIONS)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }.filter { checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED }
-
+        val missing = missingForegroundPermissions()
         if (missing.isEmpty()) {
             ElevationRecordingService.start(this)
         } else {
             requestPermissions(missing.toTypedArray(), REQUEST_PERMISSIONS)
         }
+    }
+
+    private fun missingForegroundPermissions(): List<String> = buildList {
+        addAll(ElevationRecordingService.LOCATION_PERMISSIONS)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+
+    private fun onAutoRecordToggled(enabled: Boolean) {
+        AutoRecordSetting.setEnabled(this, enabled)
+        if (!enabled) {
+            settingUpAutoRecord = false
+            ElevationRecordingService.stopWatching(this)
+        } else {
+            continueAutoRecordSetup()
+        }
+    }
+
+    /**
+     * Android asks for location in two steps: first "while using the app", then (on its own
+     * screen) "all the time". Auto-record needs both.
+     */
+    private fun continueAutoRecordSetup() {
+        settingUpAutoRecord = true
+        val missing = missingForegroundPermissions()
+        when {
+            missing.isNotEmpty() -> requestPermissions(missing.toTypedArray(), REQUEST_AUTO_FOREGROUND)
+            !AutoRecordSetting.hasBackgroundLocation(this) -> AlertDialog.Builder(this)
+                .setTitle(R.string.auto_record_permission_title)
+                .setMessage(R.string.auto_record_permission_message)
+                .setPositiveButton(R.string.continue_label) { _, _ ->
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        requestPermissions(
+                            arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
+                            REQUEST_AUTO_BACKGROUND,
+                        )
+                    }
+                }
+                .setNegativeButton(R.string.cancel_label) { _, _ -> autoRecordDenied() }
+                .setOnCancelListener { autoRecordDenied() }
+                .show()
+            else -> {
+                settingUpAutoRecord = false
+                ElevationRecordingService.startWatching(this)
+            }
+        }
+    }
+
+    private fun autoRecordDenied() {
+        settingUpAutoRecord = false
+        AutoRecordSetting.setEnabled(this, false)
+        autoRecordSwitch.isChecked = false
+        AlertDialog.Builder(this)
+            .setMessage(R.string.auto_record_permission_denied)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     override fun onRequestPermissionsResult(
@@ -148,10 +231,18 @@ class MainActivity : Activity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_PERMISSIONS) {
-            // Notifications are optional; only location is needed to record.
-            ElevationRecordingService.start(this)
-            updateStatus()
+        when (requestCode) {
+            REQUEST_PERMISSIONS -> {
+                // Notifications are optional; only location is needed to record.
+                ElevationRecordingService.start(this)
+                updateStatus()
+            }
+            REQUEST_AUTO_FOREGROUND ->
+                if (ElevationRecordingService.hasLocationPermission(this)) continueAutoRecordSetup()
+                else autoRecordDenied()
+            REQUEST_AUTO_BACKGROUND ->
+                if (AutoRecordSetting.hasBackgroundLocation(this)) continueAutoRecordSetup()
+                else autoRecordDenied()
         }
     }
 
@@ -188,5 +279,7 @@ class MainActivity : Activity() {
 
     private companion object {
         const val REQUEST_PERMISSIONS = 1
+        const val REQUEST_AUTO_FOREGROUND = 2
+        const val REQUEST_AUTO_BACKGROUND = 3
     }
 }

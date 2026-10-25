@@ -19,6 +19,9 @@ import android.os.Bundle
 import android.os.HandlerThread
 import android.os.IBinder
 import android.util.Log
+import androidx.car.app.connection.CarConnection
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.Observer
 import com.supachris28.aaaltimeter.MainActivity
 import com.supachris28.aaaltimeter.R
 import com.supachris28.aaaltimeter.elevation.ElevationRepository
@@ -29,12 +32,36 @@ import java.io.IOException
  *
  * It runs as a foreground service (with a notification) so Android keeps delivering location
  * while the phone screen is off and the app is only visible on the car display.
+ *
+ * GPS runs while any of these hold:
+ *  - recording was asked for, by the car screen being open or the phone's Start button;
+ *  - auto-record is on ([AutoRecordSetting]) and the phone is connected to Android Auto, unless
+ *    Stop was pressed during this drive.
+ *
+ * With auto-record on, the service also stays alive between drives with GPS off ("watching"),
+ * because Android gives an app no way to be woken up when Android Auto connects.
  */
 class ElevationRecordingService : Service() {
 
     private lateinit var thread: HandlerThread
     private lateinit var locationManager: LocationManager
     private var listening = false
+
+    private var recordRequested = false
+    private var watching = false
+    private var carConnected = false
+    private var stoppedThisDrive = false
+    private var inForeground = false
+    private var carConnection: LiveData<Int>? = null
+    private val connectionObserver = Observer<Int> { type ->
+        val connected = type == CarConnection.CONNECTION_TYPE_PROJECTION ||
+            type == CarConnection.CONNECTION_TYPE_NATIVE
+        if (connected != carConnected) {
+            carConnected = connected
+            if (!connected) stoppedThisDrive = false
+            applyState()
+        }
+    }
 
     // Last position we measured distance from. Only moved on once we've clearly travelled, so
     // GPS wander while parked doesn't add up to phantom miles.
@@ -55,53 +82,118 @@ class ElevationRecordingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        running = true
         thread = HandlerThread("ElevationRecording").apply { start() }
         locationManager = getSystemService(LocationManager::class.java)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            stopSelf()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            ACTION_RECORD -> {
+                recordRequested = true
+                stoppedThisDrive = false
+            }
+            ACTION_RELEASE -> recordRequested = false
+            ACTION_STOP -> {
+                recordRequested = false
+                if (carConnected) stoppedThisDrive = true
+            }
+            ACTION_UNWATCH -> watching = false
+            // ACTION_WATCH, or null when Android restarts the service after killing it.
+            else -> watching = AutoRecordSetting.isEnabled(this)
         }
-        // startForeground() must be called promptly after startForegroundService(), even if
-        // we then bail out, or Android kills the app.
+        applyState()
+        return if (watching) START_STICKY else START_NOT_STICKY
+    }
+
+    /** Brings GPS, the notification and the Android Auto listener in line with the flags above. */
+    private fun applyState() {
+        val autoRecord = watching && carConnected && !stoppedThisDrive &&
+            AutoRecordSetting.hasBackgroundLocation(this)
+        val wantGps = hasLocationPermission(this) && (recordRequested || autoRecord)
+
+        if (!wantGps && !watching) {
+            // startForeground() must be called promptly after startForegroundService(), even if
+            // we then bail out, or Android kills the app.
+            if (!inForeground) {
+                try {
+                    startInForeground(gps = false)
+                } catch (e: RuntimeException) {
+                    Log.w(TAG, "Could not enter foreground before stopping", e)
+                }
+            }
+            stopListening()
+            stopSelf()
+            return
+        }
+
+        var gps = wantGps
         try {
-            startInForeground()
+            startInForeground(gps)
         } catch (e: RuntimeException) {
-            // e.g. SecurityException if location permission was revoked in the meantime.
+            // e.g. SecurityException if location permission was revoked, or Android refused to
+            // start location in the background.
             Log.w(TAG, "Could not start foreground recording", e)
-            stopSelf()
-            return START_NOT_STICKY
-        }
-        if (!listening) {
-            if (!hasLocationPermission(this)) {
+            gps = false
+            if (!watching) {
                 stopSelf()
-                return START_NOT_STICKY
+                return
             }
             try {
-                locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    UPDATE_INTERVAL_MILLIS,
-                    0f,
-                    locationListener,
-                    thread.looper,
-                )
-                listening = true
-                ElevationRepository.setRecording(true)
-            } catch (e: SecurityException) {
-                Log.w(TAG, "Location permission missing", e)
+                startInForeground(gps = false)
+            } catch (e2: RuntimeException) {
+                Log.w(TAG, "Could not keep watching for Android Auto", e2)
                 stopSelf()
+                return
             }
         }
-        return START_NOT_STICKY
+        if (gps) startListening() else stopListening()
+        updateCarConnectionListener()
+    }
+
+    private fun startListening() {
+        if (listening) return
+        try {
+            locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                UPDATE_INTERVAL_MILLIS,
+                0f,
+                locationListener,
+                thread.looper,
+            )
+            listening = true
+            ElevationRepository.setRecording(true)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Location permission missing", e)
+        }
+    }
+
+    private fun stopListening() {
+        if (!listening) return
+        locationManager.removeUpdates(locationListener)
+        listening = false
+        distanceAnchor = null
+        ElevationRepository.setRecording(false)
+    }
+
+    private fun updateCarConnectionListener() {
+        if (watching && carConnection == null) {
+            val live = CarConnection(this).type
+            carConnection = live
+            live.observeForever(connectionObserver)
+        } else if (!watching && carConnection != null) {
+            carConnection?.removeObserver(connectionObserver)
+            carConnection = null
+            carConnected = false
+        }
     }
 
     override fun onDestroy() {
-        if (listening) locationManager.removeUpdates(locationListener)
-        listening = false
+        carConnection?.removeObserver(connectionObserver)
+        carConnection = null
+        stopListening()
         thread.quitSafely()
-        ElevationRepository.setRecording(false)
+        running = false
         super.onDestroy()
     }
 
@@ -156,13 +248,22 @@ class ElevationRecordingService : Service() {
         return location.altitude
     }
 
-    private fun startInForeground() {
+    private fun startInForeground(gps: Boolean) {
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
                 getString(R.string.recording_channel),
                 NotificationManager.IMPORTANCE_LOW,
+            )
+        )
+        // Shown between drives with auto-record on. Minimum importance keeps it out of the
+        // status bar; Android insists on some notification for a long-running service.
+        notificationManager.createNotificationChannel(
+            NotificationChannel(
+                WATCHING_CHANNEL_ID,
+                getString(R.string.watching_channel),
+                NotificationManager.IMPORTANCE_MIN,
             )
         )
         val openApp = PendingIntent.getActivity(
@@ -172,29 +273,53 @@ class ElevationRecordingService : Service() {
             this, 1, Intent(this, ElevationRecordingService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification = Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher)
-            .setContentTitle(getString(R.string.recording_title))
-            .setContentText(getString(R.string.recording_text))
-            .setContentIntent(openApp)
-            .setOngoing(true)
-            .addAction(
-                Notification.Action.Builder(null, getString(R.string.stop_recording), stop).build()
-            )
-            .build()
+        val notification = if (gps) {
+            Notification.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher)
+                .setContentTitle(getString(R.string.recording_title))
+                .setContentText(getString(R.string.recording_text))
+                .setContentIntent(openApp)
+                .setOngoing(true)
+                .addAction(
+                    Notification.Action.Builder(null, getString(R.string.stop_recording), stop).build()
+                )
+                .build()
+        } else {
+            Notification.Builder(this, WATCHING_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher)
+                .setContentTitle(getString(R.string.watching_title))
+                .setContentText(getString(R.string.watching_text))
+                .setContentIntent(openApp)
+                .setOngoing(true)
+                .build()
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+            // "Connected device" (the car) covers waiting for Android Auto; "location" is added
+            // only while GPS is actually on.
+            var type = 0
+            if (gps) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            if (watching || !gps) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+            startForeground(NOTIFICATION_ID, notification, type)
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+        inForeground = true
     }
 
     companion object {
         private const val TAG = "ElevationRecording"
         private const val CHANNEL_ID = "recording"
+        private const val WATCHING_CHANNEL_ID = "watching"
         private const val NOTIFICATION_ID = 1
         private const val ACTION_STOP = "com.supachris28.aaaltimeter.STOP_RECORDING"
+        private const val ACTION_RECORD = "com.supachris28.aaaltimeter.RECORD"
+        private const val ACTION_RELEASE = "com.supachris28.aaaltimeter.RELEASE"
+        private const val ACTION_WATCH = "com.supachris28.aaaltimeter.WATCH"
+        private const val ACTION_UNWATCH = "com.supachris28.aaaltimeter.UNWATCH"
+
+        /** Main thread only. Lets us send commands without accidentally starting the service. */
+        private var running = false
         private const val UPDATE_INTERVAL_MILLIS = 1_000L
         private const val MAX_VERTICAL_ACCURACY_METERS = 50f
         private const val MAX_HORIZONTAL_ACCURACY_METERS = 50f
@@ -215,8 +340,38 @@ class ElevationRecordingService : Service() {
          */
         fun start(context: Context): Boolean {
             if (!hasLocationPermission(context)) return false
+            return send(context, ACTION_RECORD, canStart = true)
+        }
+
+        /** Stops recording. With auto-record on, GPS stays off until the next Android Auto connection. */
+        fun stop(context: Context) {
+            send(context, ACTION_STOP, canStart = false)
+        }
+
+        /** The car screen closed. Recording carries on if auto-record wants it. */
+        fun release(context: Context) {
+            send(context, ACTION_RELEASE, canStart = false)
+        }
+
+        /** Starts waiting for Android Auto, if auto-record is on and allowed. */
+        fun startWatching(context: Context): Boolean {
+            if (!AutoRecordSetting.isEnabled(context) || !AutoRecordSetting.hasBackgroundLocation(context)) {
+                return false
+            }
+            return send(context, ACTION_WATCH, canStart = true)
+        }
+
+        fun stopWatching(context: Context) {
+            send(context, ACTION_UNWATCH, canStart = false)
+        }
+
+        private fun send(context: Context, action: String, canStart: Boolean): Boolean {
+            if (!running && !canStart) return true
+            val intent = Intent(context, ElevationRecordingService::class.java).setAction(action)
             return try {
-                context.startForegroundService(Intent(context, ElevationRecordingService::class.java))
+                // A running foreground service can take commands from the background; only a
+                // fresh start has to promise to go foreground.
+                if (running) context.startService(intent) else context.startForegroundService(intent)
                 true
             } catch (e: IllegalStateException) {
                 // ForegroundServiceStartNotAllowedException (Android 12+) is an IllegalStateException.
@@ -226,10 +381,6 @@ class ElevationRecordingService : Service() {
                 Log.w(TAG, "Not allowed to start recording", e)
                 false
             }
-        }
-
-        fun stop(context: Context) {
-            context.stopService(Intent(context, ElevationRecordingService::class.java))
         }
     }
 }
