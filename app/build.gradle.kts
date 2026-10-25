@@ -52,6 +52,8 @@ dependencies {
     // Lets the app run on Android Auto (phone projected to the car screen).
     implementation(libs.androidx.car.app.projected)
     implementation(libs.androidx.lifecycle.common)
+    // CarConnection reports Android Auto connect/disconnect as LiveData.
+    implementation(libs.androidx.lifecycle.livedata.core)
 
     testImplementation(libs.junit)
 }

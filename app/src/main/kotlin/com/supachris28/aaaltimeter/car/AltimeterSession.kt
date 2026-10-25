@@ -7,7 +7,10 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.supachris28.aaaltimeter.recording.ElevationRecordingService
 
-/** One session per car connection. Recording runs for as long as the app is open in the car. */
+/**
+ * One session per car connection. Recording runs for as long as the app is open in the car, and
+ * for the whole drive if auto-record is on.
+ */
 class AltimeterSession : Session() {
 
     init {
@@ -17,7 +20,7 @@ class AltimeterSession : Session() {
             }
 
             override fun onDestroy(owner: LifecycleOwner) {
-                ElevationRecordingService.stop(carContext)
+                ElevationRecordingService.release(carContext)
             }
         })
     }

@@ -7,10 +7,26 @@
     <!-- Keeps recording while the phone screen is off and only the car display is in use. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!--
+        Auto-record: GPS starts when Android Auto connects, while the app isn't on screen, which
+        needs location "Allow all the time". The "connected device" service type covers waiting
+        for the car between drives; it needs one of a few connectivity permissions, and
+        CHANGE_NETWORK_STATE is the harmless one (granted automatically, never used).
+    -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <!-- Restarts auto-record watching after a reboot. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Shows the "Recording elevation" notification on Android 13+. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+
+    <!-- Lets the app ask Android Auto whether the phone is connected to a car. -->
+    <queries>
+        <provider android:authorities="androidx.car.app.connection" />
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -45,7 +61,16 @@
         <service
             android:name=".recording.ElevationRecordingService"
             android:exported="false"
-            android:foregroundServiceType="location" />
+            android:foregroundServiceType="location|connectedDevice" />
+
+        <receiver
+            android:name=".recording.AutoRecordBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Simple phone-side screen, mainly so the app shows in the launcher. -->
         <activity

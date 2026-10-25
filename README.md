@@ -114,6 +114,15 @@ The DHU is a desktop window that pretends to be a car screen, driven by your rea
   "Recording elevation" notification on the phone) that asks for a GPS fix every second. Closing
   the app in the car stops it. The phone screen also has Start/Stop buttons for testing without a car.
   The first time, tap **Grant on phone** on the car screen (or Start on the phone) to allow location.
+- **Auto-record.** Turn on **Record automatically with Android Auto** on the phone screen to record
+  every drive, whether or not AAAltimeter is open in the car. It asks for location **Allow all the
+  time**: Android only lets an app start GPS while it isn't on screen with that permission. Between
+  drives a silent "Ready to record" notification stays in the shade, because Android has no way to
+  wake an app when Android Auto connects, so the app keeps a tiny service running (GPS off) that
+  listens for the connection. It restarts itself after a reboot or app update. **Stop recording**
+  in the notification pauses it until the next drive. Some phones (Samsung, Xiaomi and others) kill
+  background apps aggressively; if recording doesn't start on its own, set AAAltimeter's battery
+  usage to **Unrestricted** in the app's settings.
 - **Sea level.** GPS measures height above a mathematical ellipsoid, which in the UK is about 50 m
   off real height above sea level. On Android 14+ the app corrects for this with Android's built-in
   geoid model; on older phones it shows the raw GPS value. The trend is unaffected.
